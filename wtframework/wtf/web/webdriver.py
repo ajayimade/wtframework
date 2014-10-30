@@ -19,7 +19,6 @@ import os
 from threading import current_thread
 import time
 import urllib2
-import selenium
 from selenium import webdriver
 from selenium.webdriver.firefox.firefox_binary import FirefoxBinary
 from selenium.common.exceptions import WebDriverException
@@ -27,23 +26,21 @@ from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from six import u
 from wtframework.wtf import _wtflog
 from wtframework.wtf.config import WTF_CONFIG_READER, WTF_TIMEOUT_MANAGER
-
 from selenium.webdriver.chrome.options import Options
-from os.path import expanduser
 
 class WebDriverFactory(object):
 
     '''
     This class constructs a Selenium Webdriver using settings in the config file.
-    This allows you to substitute different Webdrivers by changing the config settings 
+    This allows you to substitute different Webdrivers by changing the config settings
     while keeping your tests using the same Webdriver interface.
 
-    Ideally you will not use this directly.  You will normally use the global instance, 
-    WTF_WEBDRIVER_MANAGER.new_driver(), to create a new instance of Webdriver.  This allows 
-    the framework to take screenshots during test failures.  When you're done with the 
+    Ideally you will not use this directly.  You will normally use the global instance,
+    WTF_WEBDRIVER_MANAGER.new_driver(), to create a new instance of Webdriver.  This allows
+    the framework to take screenshots during test failures.  When you're done with the
     Webdriver, call WTF_WEBDRIVER_MANAGER.close_driver().
 
-    You can extend this class for the purposes of adding support for Webdrivers that are not 
+    You can extend this class for the purposes of adding support for Webdrivers that are not
     currently supported.
     '''
 
@@ -82,7 +79,6 @@ class WebDriverFactory(object):
 
     # ENV vars that are used by selenium.
     __SELENIUM_SERVER_JAR_ENV = "SELENIUM_SERVER_JAR"
-    
     # System ENV prefix for variables in desired capabilities.
     DESIRED_CAPABILITIES_ENV_PREFIX = "WTF_selenium_desired_capabilities_"
 
@@ -96,8 +92,8 @@ class WebDriverFactory(object):
             config_reader (ConfigReader) - Override the default config reader.
             env_vars (Dictionary) - Override the default ENV vars provider.
         '''
-        # Block of if/else statements setting dependencies.  If provided, 
-        # we'll use the provided (unit testing), other wise we'll use the 
+        # Block of if/else statements setting dependencies.  If provided,
+        # we'll use the provided (unit testing), other wise we'll use the
         # default for normal usage scenarios.
         if config_reader is not None:
             self._config_reader = config_reader
@@ -118,11 +114,11 @@ class WebDriverFactory(object):
     def create_webdriver(self, testname=None):
         '''
             Creates an instance of Selenium webdriver based on config settings.
-            This should only be called by a shutdown hook.  Do not call directly within 
+            This should only be called by a shutdown hook.  Do not call directly within
             a test.
 
             Kwargs:
-                testname: Optional test name to pass, this gets appended to the test name 
+                testname: Optional test name to pass, this gets appended to the test name
                           sent to selenium grid.
 
             Returns:
@@ -157,7 +153,7 @@ class WebDriverFactory(object):
                     "implemented" in e.msg.lower()):
                     pass  # Maximizing window not supported by this webdriver.
                 else:
-                    _wtflog.warn("Unable to maxmize browser window. " + 
+                    _wtflog.warn("Unable to maxmize browser window. " +
                                  "It may be possible the browser did not instantiate correctly. % s",
                                  e)
 
@@ -177,7 +173,8 @@ class WebDriverFactory(object):
         browser_type_dict = {
             self.CHROME: lambda: self.__get_chrome_webdriver(),
             self.FIREFOX: lambda: self.__get_firefox_webdriver(),
-            self.INTERNETEXPLORER: lambda: webdriver.Ie(),
+            self.INTERNETEXPLORER: lambda: webdriver.Ie(
+                self._config_reader.get('versions.ie_driver', None)),
             self.OPERA: lambda: webdriver.Opera(),
             self.PHANTOMJS: lambda: self.__create_phantom_js_driver(),
             self.SAFARI: lambda: self.__create_safari_driver()
@@ -196,36 +193,28 @@ class WebDriverFactory(object):
         Returns chromedriver with given config
         '''
 
-        home_dir = expanduser("~")
         chrome_driver = self._config_reader.get('versions.chrome_driver', None)
 
         if chrome_driver:
-            chrome_driver_path = os.path.join(home_dir, chrome_driver)
+            chrome_driver_path = chrome_driver
         else:
             chrome_driver_path = self._config_reader.get(WebDriverFactory.CHROME_DRIVER_PATH)
-    
         return webdriver.Chrome(chrome_driver_path, chrome_options=self.__get_crome_options(), service_args=["--verbose", "--log-path=/tmp/webdriver_log.log"])
 
-        
 
     def __get_crome_options(self):
         '''
         Creates chrome_options with extension to be added
         '''
         chrome_options = Options()
-        home_dir = expanduser("~")
-
+        home_dir = os.getcwd()
         chrome_version = self._config_reader.get('versions.chrome_version', None)
         if chrome_version:
             binary_path = os.path.join(home_dir, chrome_version)
             chrome_options.add_argument("binary=" + binary_path)
-
         chrome_extension = self._config_reader.get('extensions.chrome_extension', None)
         if chrome_extension:
-            extension_path = os.path.join(home_dir, chrome_extension)
-            chrome_options.add_extension(extension_path)
-
-
+            chrome_options.add_extension(chrome_extension)
         profile_prefs = self._config_reader.get('profile_prefs.chrome', None)
         for pref in profile_prefs:
             pref_val = profile_prefs[pref]
@@ -233,16 +222,14 @@ class WebDriverFactory(object):
                 chrome_options.add_argument(pref + "=" + pref_val)
             else:
                 chrome_options.add_argument(pref)
-
         return chrome_options
-       
 
     def __get_firefox_webdriver(self):
         '''
-        Returns the firefox webdriver and if firefox binary given then creates 
+        Returns the firefox webdriver and if firefox binary given then creates
         webdriver with specific firefox binary
         '''
-        home_dir = expanduser("~")
+        home_dir = os.getcwd()
         firefox_version = self._config_reader.get('versions.firefox_version', None)
         if firefox_version:
             ff_binary_path = os.path.join(home_dir, firefox_version)
@@ -256,18 +243,15 @@ class WebDriverFactory(object):
         '''
         Creates Firefox profile with extension added to it
         '''
-        home_dir = expanduser("~")
+        home_dir = os.getcwd()
         ff_profile = self._config_reader.get('versions.firefox_profile', None)
         firefox_profile_path = None
-        
+
         fp = webdriver.FirefoxProfile()
-
         firefox_extension = None
-        firefox_extension = self._config_reader.get('extensions.firefox_extension', None)       
+        firefox_extension = self._config_reader.get('extensions.firefox_extension', None)
         if firefox_extension:
-            ff_ext_path = os.path.join(home_dir, firefox_extension)
-            fp.add_extension(ff_ext_path)
-
+            fp.add_extension(firefox_extension)
         profile_prefs = self._config_reader.get('profile_prefs.firefox', None)
         for pref in profile_prefs:
             pref_val = profile_prefs[pref]
@@ -311,7 +295,6 @@ class WebDriverFactory(object):
         Reads the config value for browser type.
         '''
         desired_capabilities = self._generate_desired_capabilities(testname)
-        
         remote_url = self._config_reader.get(
             WebDriverFactory.REMOTE_URL_CONFIG)
 
@@ -344,7 +327,7 @@ class WebDriverFactory(object):
         return driver
         # End of method.
 
-    def _generate_desired_capabilities(self, testname):
+    def _generate_desired_capabiies(self, testname):
         # Generate desired capabilities object using config settings.
         browser_type = self._config_reader.get(
             WebDriverFactory.BROWSER_TYPE_CONFIG)
@@ -437,12 +420,12 @@ class WebDriverFactory(object):
 class WebDriverManager(object):
 
     '''
-    Provides Singleton instance of Selenium WebDriver based on 
+    Provides Singleton instance of Selenium WebDriver based on
     config settings.
 
-    Reason we don't make this a Utility class that provides a singleton 
-    of the WebDriver itself is so we can allow that pice to be mocked 
-    out to assist in unit testing framework classes that may use this. 
+    Reason we don't make this a Utility class that provides a singleton
+    of the WebDriver itself is so we can allow that pice to be mocked
+    out to assist in unit testing framework classes that may use this.
     '''
 
     "Config setting to reuse browser instances between WebdriverManager.new_driver() calls."
@@ -459,7 +442,7 @@ class WebDriverManager(object):
         Initializer
 
         Kwargs:
-            webdriver_factory (WebDriverFactory): Override default webdriver factory. 
+            webdriver_factory (WebDriverFactory): Override default webdriver factory.
             config (ConfigReader): Override default config reader.
 
         '''
@@ -570,12 +553,12 @@ class WebDriverManager(object):
 
     def new_driver(self, testname=None):
         '''
-        Used at a start of a test to get a new instance of WebDriver.  If the 
+        Used at a start of a test to get a new instance of WebDriver.  If the
         'resuebrowser' setting is true, it will use a recycled WebDriver instance
         with delete_all_cookies() called.
 
         Kwargs:
-            testname (str) - Optional test name to pass to Selenium Grid.  Helpful for 
+            testname (str) - Optional test name to pass to Selenium Grid.  Helpful for
                              labeling tests on 3rd party WebDriver cloud providers.
 
         Returns:
