@@ -192,14 +192,14 @@ class WebDriverFactory(object):
         '''
         Returns chromedriver with given config
         '''
-
         chrome_driver = self._config_reader.get('versions.chrome_driver', None)
 
         if chrome_driver:
             chrome_driver_path = chrome_driver
         else:
             chrome_driver_path = self._config_reader.get(WebDriverFactory.CHROME_DRIVER_PATH)
-        return webdriver.Chrome(chrome_driver_path, chrome_options=self.__get_crome_options(), service_args=["--verbose", "--log-path=/tmp/webdriver_log.log"])
+        desired_capabilities = self._generate_desired_capabilities(None)
+        return webdriver.Chrome(chrome_driver_path, chrome_options=self.__get_crome_options(), desired_capabilities=desired_capabilities, service_args=["--verbose", "--log-path=/tmp/webdriver_log.log"])
 
 
     def __get_crome_options(self):
@@ -327,7 +327,7 @@ class WebDriverFactory(object):
         return driver
         # End of method.
 
-    def _generate_desired_capabiies(self, testname):
+    def _generate_desired_capabilities(self, testname):
         # Generate desired capabilities object using config settings.
         browser_type = self._config_reader.get(
             WebDriverFactory.BROWSER_TYPE_CONFIG)
@@ -361,21 +361,21 @@ class WebDriverFactory(object):
         for prop in other_desired_capabilities:
             value = other_desired_capabilities[prop]
 
-            if type(other_desired_capabilities[prop]) is dict:
-                # do some recursive call to flatten this setting.
-                self.__flatten_capabilities(
-                    desired_capabilities, prop, other_desired_capabilities[prop])
-            else:  # Handle has a single string value.
-                if isinstance(value, basestring):
-                    desired_capabilities[prop] = value
+            # if type(other_desired_capabilities[prop]) is dict:
+            #    # do some recursive call to flatten this setting.
+            #    self.__flatten_capabilities(
+            #        desired_capabilities, prop, other_desired_capabilities[prop])
+            # else:  # Handle has a single string value.
+
+            # if isinstance(value, basestring):
+            #     desired_capabilities[prop] = value
 
                 # Version is specified as a string, but we'll allow user to use
                 # an int for convenience.
-                elif prop == "version":
-                    desired_capabilities[prop] = str(value)
-
-                else:
-                    desired_capabilities[prop] = value
+            if prop == "version":
+                desired_capabilities[prop] = str(value)
+            else:
+                desired_capabilities[prop] = value
 
         # Set the test name property if specified in the WTF_TESTNAME var.
         try:
